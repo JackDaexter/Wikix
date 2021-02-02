@@ -88,7 +88,7 @@ var add = (msg) => {
        var i = 0;
        for(i = 0; i <= tagFragment.length;i++){
            if(i > 0 && i < tagFragment.length - 1 ){
-            tag += ",";
+            tag += " ";
            }
            tag += cmdLine[i];
        } 
@@ -120,7 +120,10 @@ var addlink = (cmdLine,msg) => {
     else{
        var i = 0;
        for(i = 2; i <= cmdLine.length;i++){
-           tag += ","+cmdLine[i];
+           if(i > 0 && i < cmdLine.length - 1 ){
+            tag += " ";
+           }
+           tag += cmdLine[i];
        } 
     }
     
@@ -151,24 +154,28 @@ var rmve = (cmdLine,msg) =>{
     }
 }
 
-var list = (msg) =>{
+async function list(msg){
     var channelName = msg.channel.name;
     var jsonElem= save[channelName];
     var i = 0;
+    var nbOfElem = Object.keys(jsonElem).length
     if(takeCmd(msg.content).length == 1){
-       
+        msg.channel.send("Voici la liste de tous les éléments enregistrer dans le channel " +channelName );
         for(obj in jsonElem){
             if(digits_only(obj) == true){
                 i++;
-                msg.channel.messages.fetch({around:jsonElem[obj]["text"],limit:1})
+                await msg.channel.messages.fetch({around:jsonElem[obj]["text"],limit:1})
                 .then(message => msg.channel
-                                    .send(obj + " : " + message.first()
-                                        .content.slice(5,message.first().content.length)))
-                
+                                    .send(
+                                        "**"+(i)+"/"+nbOfElem+"**" + " : " + 
+                                        takeCmd(message.first()
+                                        .content)[1] + "\n" + "**TAG** : " + jsonElem[obj]["tags"]
+                                        + "\n" + " ---------------------------------------" ))
+          
             }  
         }
         if(i == 0){
-            msg.channel.send("Nothing found ! ");
+            msg.channel.send("Rien n'a encore été enregistré dans ce channel !");
         }
     }
     else{
