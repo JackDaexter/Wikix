@@ -3,6 +3,7 @@ const bot = new Discord.Client();
 const config = require("./config.json")
 const save = require("./save.json")
 const fs = require("fs");
+const urlMetadata = require('url-metadata')
 const { listenerCount } = require('events');
 var id = "";
 
@@ -154,6 +155,54 @@ var rmve = (cmdLine,msg) =>{
     }
 }
 
+async function msetadata(desc){
+    await urlMetadata('https://www.youtube.com/watch?v=7cJE4xFkSas').then(
+        function (metadata) { // success handler
+            return metadata;
+        },
+        function (error) { // failure handler
+            console.log(error)
+    })
+}
+
+
+function beautifulText(Title,content,tag){
+    if(content.includes("\\")){
+        return new Discord.MessageEmbed()
+                .setColor('#0099ff')
+                .setTitle(Title + "| " + content.slice(0, 10) +"...")
+                .setURL('https://discord.js.org/')
+                .addFields(
+                    { name: 'Description', value: "None" }
+                )
+                .setTimestamp()
+                .addField('TAG : ', tag, true)
+                .setFooter('Some footer text here')
+    }
+    else{
+        var metadata = msetadata(Title);
+        return new Discord.MessageEmbed()
+                .setColor('#0099ff')
+                .setTitle(metadata["title"])
+                .setURL(metadata['url'])
+                .setThumbnail(metadata['image'])
+                .addFields(
+                    { name: 'Description', value: metadata["description"] }
+                )
+                .setTimestamp()
+                .addField('TAG : ', tag, true)
+                .setFooter('Some footer text here')
+    }
+    
+}
+
+
+
+/* 
+meta["description"],
+ meta["title"]
+*/
+
 async function list(msg){
     var channelName = msg.channel.name;
     var jsonElem= save[channelName];
@@ -166,11 +215,11 @@ async function list(msg){
                 i++;
                 await msg.channel.messages.fetch({around:jsonElem[obj]["text"],limit:1})
                 .then(message => msg.channel
-                                    .send(
-                                        "**"+(i)+"/"+nbOfElem+"**" + " : " + 
-                                        takeCmd(message.first()
-                                        .content)[1] + "\n" + "**TAG** : " + jsonElem[obj]["tags"]
-                                        + "\n" + " ---------------------------------------" ))
+                                    .send( beautifulText((i)+"/"+nbOfElem, 
+                                                        takeCmd(message.first().content)[1],
+                                                        jsonElem[obj]["tags"]
+                                                    
+                                                        )))
           
             }  
         }
@@ -246,17 +295,18 @@ var findElements = (msg,channelName) => {
     }
 }
 
-var findLink = (msg,channelName,item) => {
+async function findLink(msg,channelName,item){
     var jsonElem= save[channelName];
     var i = 0;
     for(obj in jsonElem){
         if(digits_only(obj) == true){
             if(jsonElem[obj]["tags"].includes(item)){
                 i++;
-                msg.channel.messages.fetch({around:jsonElem[obj]["text"],limit:1})
-                .then(message => msg.channel
-                                   .send(obj + " : " + message.first()
-                                       .content.slice(5,message.first().content.length)))
+                await msg.channel.messages.fetch({around:jsonElem[obj]["text"],limit:1})
+                      .then(message => msg.channel
+                                   .send(beautifulText(obj,
+                                        takeCmd(message.first().content)[1],
+                                        jsonElem[obj]["tags"])))
             }
         }       
     }
