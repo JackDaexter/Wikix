@@ -10,6 +10,7 @@
   "license": "ISC",
   "dependencies": {
     "discord.js": "^12.5.1",
+    "url-exist": "^3.0.0",
     "url-metadata": "^2.5.0"
   }
 }
