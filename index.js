@@ -3,7 +3,9 @@ const bot = new Discord.Client();
 const config = require("./config.json")
 const save = require("./save.json")
 const fs = require("fs");
-const { listenerCount } = require('events');
+const urlMetadata = require('url-metadata')
+var urlExists = require('url-exists');
+
 var id = "";
 
 bot.on("ready", async () => {
@@ -17,47 +19,25 @@ bot.on('message', message => {
 
     //check si l'utilisateur veut utiliser le bot et si c'est un user autre que le bot lui-même
     var cmdLine =  takeCmd(message.content);
-    
     if(message.author.id != this.id){
-       switch(cmdLine[0]){
-           case "!xadd": add(message); break;
+        var prefix = "!";
 
-           case "!xaddlink": addlink(cmdLine,message); break; 
-
-           case "!xrmve": rmve(cmdLine,message); break; 
-
-           case "!xfind": find(cmdLine,message); break; 
-
-           case "!xlist": list(message); break; 
-            
-           case "!xcmd" : cmd(message); break; 
-
-           default:
-               console.log("moi pas comprendre");
-               break;
-       }
+        if(message.content.startsWith(prefix+"xadd")){
+            add(message);
+        }else if(message.content.startsWith(prefix+"xadd")){
+            addlink(cmdLine,message);
+        }else if(message.content.startsWith(prefix+"xrmve")){
+            rmve(cmdLine,message);
+        }else if(message.content.startsWith(prefix+"xfind")){
+            find(cmdLine,message);
+        }else if(message.content.startsWith(prefix+"xlist")){
+            list(message);
+        }else if(message.content.startsWith(prefix+"xcmd")){
+            cmd(message);
+        }
     }
     
 })
-
-
-var getByType = (type,mot) => {
-    switch(type){
-        case "call" : return takeCmd(mot)[0];   //Check si c'est bien wikix
-            
-        case "option": return mot[1]; // Check si c'est text ou link
-
-        case "id" : return mot[2]; // Prend l'id choisit par l'user
-        
-        case "cmd" : return "cmd";
-
-        case "find" : return "find";
-
-        default : return "none";
-
-    }
-}
-
 
 
 var updateJSON = (json,message) => {
@@ -65,37 +45,27 @@ var updateJSON = (json,message) => {
         if(err){
             message.channel.send("Error during register !")
         }
-        else{
-            message.channel.send("Ressource updated ! ")
-        }
     })
 }
 
 
 var add = (msg) => {
     var channelName = msg.channel.name;
-    var cmdLineSpecial = msg.content.split("\\");
+    var cmdLineSpecial = msg.content.split("\"\"\"");
     var myJson = save[channelName];
-    var tagFragment = cmdLineSpecial[0].split(" ");
-    var tag = "";
-
-    if(cmdLineSpecial.length != 3){
-        msg.channel.send("Command Error : tag is missing ! ");
+    var tag = ""
+    if(cmdLineSpecial.length != 3 && msg.content.includes("\"\"\"")){
+        msg.channel.send("Command Error : tag or text syntax error ! ");
         return;    
     }
-
-    else{
-       var i = 0;
-       for(i = 0; i <= tagFragment.length;i++){
-           if(i > 0 && i < tagFragment.length - 1 ){
-            tag += ",";
-           }
-           tag += cmdLine[i];
-       } 
+    else if(msg.content.includes("\"\"\"")){
+       tag = createTag(cmdLineSpecial[2].split(" "),0);
     }
-    
-    
-    var nbOfElem = Object.keys(myJson).length + 1;
+    else{
+        tag = createTag(msg.content.split(" "),2);
+    }
+
+    var nbOfElem = Object.keys(myJson).length;
     save[channelName]["nbElem"] = nbOfElem;
     save[channelName][nbOfElem] = {}
     save[channelName][nbOfElem]["author"] = "tononcle";
@@ -107,68 +77,140 @@ var add = (msg) => {
     msg.channel.send(" Texte enregistré! ");
 }
 
+var createTag = (tagElem,j) => {
+    var tag = "";
+    var i = j;
+    for(i; i <= tagElem.length - 1;i++){
+        if(i > 0 && i < tagElem.length){
+         tag += " ";
+        }
+        tag += tagElem[i];
+    } 
+    return tag;
+}
+
 var addlink = (cmdLine,msg) => {
     var channelName = msg.channel.name;
     var myJson = save[channelName];
-    var tag = "";
 
     if(cmdLine.length < 3){
-        console.log("error");
-        msg.channel.send("Command Error : tag is missing ! ");
+        msg.channel.send("Command Error : tag or url is missing ! ");
         return;    
     }
     else{
-       var i = 0;
-       for(i = 2; i <= cmdLine.length;i++){
-           tag += ","+cmdLine[i];
-       } 
+        // Les tags commencent a la position [2]
+        var tag = createTag(cmdLine,2);
+        var nbOfElem = Object.keys(myJson).length + 1;
+        save[channelName]["nbElem"] = nbOfElem;
+        save[channelName][nbOfElem] = {}
+        save[channelName][nbOfElem]["author"] = "tononcle";
+        save[channelName][nbOfElem]["text"] = msg.id
+        save[channelName][nbOfElem]["tags"] = tag;
+        json = JSON.stringify(save)
+        updateJSON(json,msg);    
+    
+        msg.channel.send(" Lien enregistré! ");
     }
-    
-    
-    var nbOfElem = Object.keys(myJson).length + 1;
-    save[channelName]["nbElem"] = nbOfElem;
-    save[channelName][nbOfElem] = {}
-    save[channelName][nbOfElem]["author"] = "tononcle";
-    save[channelName][nbOfElem]["text"] = msg.id
-    save[channelName][nbOfElem]["tags"] = tag;
-    json = JSON.stringify(save)
-    updateJSON(json,msg);    
-
-    msg.channel.send(" Lien enregistré! ");
 }
 
 var rmve = (cmdLine,msg) =>{
     var channelName = msg.channel.name;
-    
-    if(save[channelName].hasOwnProperty(cmdLine[1])){
-        delete save[channelName][idElem]
-        json = JSON.stringify(save)
-        updateJSON(json,msg)
-        msg.channel.send("Element has been deleted ! ");
+
+    for(var i = 1; i < cmdLine.length; i++){
+        if(save[channelName].hasOwnProperty(cmdLine[i])){
+            delete save[channelName][cmdLine[i]]
+            json = JSON.stringify(save)
+            updateJSON(json,msg)
+            msg.channel.send("Element has been deleted ! ");
+        }
+        else{
+            console.log(i)
+            msg.channel.send("Element with ID " + cmdLine[i] + " not exist...");
+        }
     }
-    else{
-        msg.channel.send("Element " + idElem + " not exist...");
-    }
+   
 }
 
-var list = (msg) =>{
+async function msetadata(desc){
+    
+    var meta = await urlMetadata(desc).then(
+        function (metadata) { // success handler
+            return metadata;
+        },
+        function (error) { // failure handler
+            console.log(error)
+        })
+
+    return meta;
+}
+
+
+async function beautifulText(Title,content,myMessage,tag,username){
+    if(content.includes("\"\"\"")){
+        var header = takeCmd(content)[1];
+        return await new Discord.MessageEmbed()
+                .setColor('#5BFF62')
+                .setTitle(Title + "| " + header.slice(0, 20) +"...")
+                .setThumbnail(myMessage.first().author.displayAvatarURL())
+                .setURL('https://discord.js.org/')
+                .setAuthor(username)
+                .addFields(
+                    { name: 'Texte', value: header },
+                    { name: '\u200B', value: '\u200B' },
+                    { name: 'TAG :', value : tag}
+                )
+                .setTimestamp()
+                .setFooter('Some footer text here')
+    }
+    else{
+        var header = takeCmd(content)[1];
+        var metadata = await msetadata(header);
+        
+        return await new Discord.MessageEmbed()
+                    .setAuthor(username)
+                    .setColor('#0099ff')
+                    .setTitle(`ID : ${obj}`+ " " + metadata['title'])
+                    .setThumbnail(metadata['image'])
+                    .setTimestamp()
+                    .setFooter('Some footer text here') 
+                    .setURL(metadata['url'])
+                    .addField('Description : ',  metadata['description'], true)
+                    .addFields(
+                        { name: '\u200B', value: '\u200B' },
+                        { name: 'TAG :', value : tag}
+                    )
+      
+
+    }
+    
+}
+
+
+async function list(msg){
     var channelName = msg.channel.name;
-    var jsonElem= save[channelName];
+    var jsonElem = save[channelName];
     var i = 0;
+
     if(takeCmd(msg.content).length == 1){
-       
         for(obj in jsonElem){
+            
             if(digits_only(obj) == true){
+               
                 i++;
-                msg.channel.messages.fetch({around:jsonElem[obj]["text"],limit:1})
-                .then(message => msg.channel
-                                    .send(obj + " : " + message.first()
-                                        .content.slice(5,message.first().content.length)))
-                
+                var myMessage;
+                await msg.channel.messages.fetch({around:jsonElem[obj]["text"],limit:1})
+                .then(message => myMessage = message );
+                var texxt = await beautifulText(`ID : ${obj}`, 
+                                        myMessage.first().content,
+                                        myMessage,
+                                        jsonElem[obj]["tags"],
+                                        msg.author.username)
+                             
+                msg.channel.send(texxt) 
             }  
         }
         if(i == 0){
-            msg.channel.send("Nothing found ! ");
+            msg.channel.send("Rien n'a encore été enregistré dans ce channel !");
         }
     }
     else{
@@ -179,11 +221,38 @@ var list = (msg) =>{
 
 var find = (cmdLine,msg) =>{
     var channelName = msg.channel.name;
-
     if(cmdLine.length == 2){
         findLink(msg,channelName,cmdLine[1]);
     }
+    else{
+        msg.channel.send("Tu ne peux rechercher qu'un seul élément à la fois ! (Abrutis)");
+    }
 }
+
+async function findLink(msg,channelName,item){
+    var jsonElem = save[channelName];
+    var i = 0;
+    for(obj in jsonElem){
+        if(digits_only(obj) == true){
+            console.log(jsonElem[obj]["tags"])
+            if(jsonElem[obj]["tags"].includes(item)){
+                i++;
+                await msg.channel.messages.fetch({around:jsonElem[obj]["text"],limit:1})
+                      .then(message => myMessage = message );
+                      var texxt = await beautifulText(`ID : ${obj}`, 
+                                              myMessage.first().content,
+                                              myMessage,
+                                              jsonElem[obj]["tags"],
+                                              msg.author.username)
+                     msg.channel.send(texxt) 
+            }
+        }       
+    }
+    if(i == 0){
+        msg.channel.send("Nothing found ! ");
+    }
+}
+
 
 var cmd = (msg) =>{
     msg.channel.send(" All your command have to start by !wikix");
@@ -193,71 +262,15 @@ var cmd = (msg) =>{
     msg.channel.send(" !xfind [tag]");
 }
 
-
-var takeId = (elemId) => {
-    return elemId.split(" ")[0];
-}
-
 var takeCmd = (command) => {
+    var urlType = command.includes("\"\"\"");
+    if(urlType == true){
+        return command.split("\"\"\"");
+    }
     return command.split(" ");
 }
 
 const digits_only = string => [...string].every(c => '0123456789'.includes(c));
-
-var findElements = (msg,channelName) => {
-    var  i = 0;
-    var idToFind = cmdLine[2];
-    var jsonElem= save[channelName]["link"]
-
-    for(obj in jsonElem){
-        if(idToFind.include(obj)){
-            i++;
-            msg.channel.messages
-                .fetch({around:jsonElem[obj],limit:1})
-                .then(message => msg.channel
-                                    .send(takeCmd(message.first()
-                                        .content)[3]))
-        }
-    }
-    jsonElem = save[channelName]["text"]
-    for(obj in jsonElem){
-        
-        if(idToFind.include(obj)){
-            i++;
-            msg.channel.messages
-                .fetch({around:jsonElem[obj],limit:1})
-                .then(message => msg.channel
-                                    .send(message.first()
-                                        .content.slice(12,message.first().content.length)))
-        }
-    }
-    if(i == 0 ){
-        msg.channel.send("Nothing Found !");
-    }
-    else{
-        msg.channel.send(i + "elements Found !");
-    }
-}
-
-var findLink = (msg,channelName,item) => {
-    var jsonElem= save[channelName];
-    var i = 0;
-    for(obj in jsonElem){
-        if(digits_only(obj) == true){
-            if(jsonElem[obj]["tags"].includes(item)){
-                i++;
-                msg.channel.messages.fetch({around:jsonElem[obj]["text"],limit:1})
-                .then(message => msg.channel
-                                   .send(obj + " : " + message.first()
-                                       .content.slice(5,message.first().content.length)))
-            }
-        }       
-    }
-    if(i == 0){
-        msg.channel.send("Nothing found ! ");
-    }
-}
-
 
 
 bot.login(config.token)
