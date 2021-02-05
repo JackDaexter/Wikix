@@ -1,10 +1,8 @@
 const Discord = require('Discord.js')
 const bot = new Discord.Client();
-const config = require("./config.json")
 const save = require("./save.json")
 const fs = require("fs");
 const urlMetadata = require('url-metadata')
-var urlExists = require('url-exists');
 
 var id = "";
 
@@ -273,4 +271,4 @@ var takeCmd = (command) => {
 const digits_only = string => [...string].every(c => '0123456789'.includes(c));
 
 
-bot.login(config.token)
+bot.login(process.env.token)
