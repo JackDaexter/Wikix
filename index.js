@@ -7,7 +7,6 @@ const urlMetadata = require('url-metadata')
 var id = "";
 
 bot.on("ready", async () => {
-    console.log("Bot is running");
     bot.user.setActivity("Mine du btc")
     this.id = bot.user.id;
 });
@@ -20,10 +19,10 @@ bot.on('message', message => {
     if(message.author.id != this.id){
         var prefix = "!";
 
-        if(message.content.startsWith(prefix+"xadd")){
-            add(message);
-        }else if(message.content.startsWith(prefix+"xadd")){
+        if(message.content.startsWith(prefix+"xaddlink")){
             addlink(cmdLine,message);
+        }else if(message.content.startsWith(prefix+"xadd")){
+            add(message);
         }else if(message.content.startsWith(prefix+"xrmve")){
             rmve(cmdLine,message);
         }else if(message.content.startsWith(prefix+"xfind")){
@@ -34,7 +33,7 @@ bot.on('message', message => {
             cmd(message);
         }
     }
-    
+
 })
 
 
@@ -46,33 +45,29 @@ var updateJSON = (json,message) => {
     })
 }
 
-
 var add = (msg) => {
     var channelName = msg.channel.name;
     var cmdLineSpecial = msg.content.split("\"\"\"");
     var myJson = save[channelName];
     var tag = ""
-    if(cmdLineSpecial.length != 3 && msg.content.includes("\"\"\"")){
-        msg.channel.send("Command Error : tag or text syntax error ! ");
+    if(!stringRegex(msg.content)){
+        msg.channel.send("Votre commande `add` ne respecte pas la syntaxe classique ! (Couillon)");
         return;    
     }
-    else if(msg.content.includes("\"\"\"")){
-       tag = createTag(cmdLineSpecial[2].split(" "),0);
-    }
     else{
-        tag = createTag(msg.content.split(" "),2);
+        tag = createTag(cmdLineSpecial[2].split(" "),0);
+        var nbOfElem = Object.keys(myJson).length;
+        save[channelName]["nbElem"] = nbOfElem;
+        save[channelName][nbOfElem] = {}
+        save[channelName][nbOfElem]["text"] = msg.id
+        save[channelName][nbOfElem]["tags"] = tag;
+        json = JSON.stringify(save)
+        updateJSON(json,msg);    
+
+        msg.channel.send(" Texte enregistré! ");
     }
 
-    var nbOfElem = Object.keys(myJson).length;
-    save[channelName]["nbElem"] = nbOfElem;
-    save[channelName][nbOfElem] = {}
-    save[channelName][nbOfElem]["author"] = "tononcle";
-    save[channelName][nbOfElem]["text"] = msg.id
-    save[channelName][nbOfElem]["tags"] = tag;
-    json = JSON.stringify(save)
-    updateJSON(json,msg);    
-
-    msg.channel.send(" Texte enregistré! ");
+    
 }
 
 var createTag = (tagElem,j) => {
@@ -91,8 +86,8 @@ var addlink = (cmdLine,msg) => {
     var channelName = msg.channel.name;
     var myJson = save[channelName];
 
-    if(cmdLine.length < 3){
-        msg.channel.send("Command Error : tag or url is missing ! ");
+    if(!linkRegex(msg.content)){
+        msg.channel.send("Votre commande `addlink` ne respecte pas la syntaxe classique ... (Connard)");
         return;    
     }
     else{
@@ -101,7 +96,6 @@ var addlink = (cmdLine,msg) => {
         var nbOfElem = Object.keys(myJson).length + 1;
         save[channelName]["nbElem"] = nbOfElem;
         save[channelName][nbOfElem] = {}
-        save[channelName][nbOfElem]["author"] = "tononcle";
         save[channelName][nbOfElem]["text"] = msg.id
         save[channelName][nbOfElem]["tags"] = tag;
         json = JSON.stringify(save)
@@ -116,13 +110,14 @@ var rmve = (cmdLine,msg) =>{
 
     for(var i = 1; i < cmdLine.length; i++){
         if(save[channelName].hasOwnProperty(cmdLine[i])){
-            delete save[channelName][cmdLine[i]]
+            delete save[channelName][cmdLine[i]];
+            if(parseInt(save[channelName]["nbElem"]) == 1){delete save[channelName]["nbElem"];}
+            else{save[channelName]["nbElem"] = parseInt(save[channelName]["nbElem"]) - 1;}
             json = JSON.stringify(save)
             updateJSON(json,msg)
             msg.channel.send("Element has been deleted ! ");
         }
         else{
-            console.log(i)
             msg.channel.send("Element with ID " + cmdLine[i] + " not exist...");
         }
     }
@@ -183,6 +178,23 @@ async function beautifulText(Title,content,myMessage,tag,username){
     
 }
 
+var stringRegex = (text) =>{
+    var regexS = new RegExp("(!x[a-z]{3})[ ](\"\"\"[a-zA-Z0-9]+\"\"\")([ ][a-zA-Z0-9]+)+");
+    
+    return regexS.test(text);
+}
+
+var linkRegex = (text) =>{
+    var textCut = text.split(" ");
+    var regex = new RegExp("(https?:\/\/(?:www\.|(?!www))[a-zA-Z0-9][a-zA-Z0-9-]+[a-zA-Z0-9]\.[^\s]{2,}|www\.[a-zA-Z0-9][a-zA-Z0-9-]+[a-zA-Z0-9]\.[^\s]{2,}|https?:\/\/(?:www\.|(?!www))[a-zA-Z0-9]+\.[^\s]{2,}|www\.[a-zA-Z0-9]+\.[^\s]{2,})");
+    var regexL = new RegExp("")
+    if(regex.test(textCut[1])){
+        if(textCut.length >= 3){
+            return true;
+        }
+    }
+    return false;
+}
 
 async function list(msg){
     var channelName = msg.channel.name;
@@ -232,7 +244,6 @@ async function findLink(msg,channelName,item){
     var i = 0;
     for(obj in jsonElem){
         if(digits_only(obj) == true){
-            console.log(jsonElem[obj]["tags"])
             if(jsonElem[obj]["tags"].includes(item)){
                 i++;
                 await msg.channel.messages.fetch({around:jsonElem[obj]["text"],limit:1})
@@ -271,4 +282,4 @@ var takeCmd = (command) => {
 const digits_only = string => [...string].every(c => '0123456789'.includes(c));
 
 
-bot.login(process.env.token)
+bot.login("ODAyNTYzOTUzODk1OTMxOTA0.YAxD7Q.WSuzSbKWez9kWl9ltfjIkpmAvVg")
